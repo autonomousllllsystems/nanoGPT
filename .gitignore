@@ -10,3 +10,8 @@ __pycache__/
 input.txt
 env/
 venv/
+data/
+*.tgz
+*.tar.gz
+*.zip
+*.txt

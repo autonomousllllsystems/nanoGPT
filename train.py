@@ -267,8 +267,9 @@ while True:
         # BPC/BPB = loss * ln(2) where loss is in nats (natural log)
         train_bpc = losses['train'] * math.log(2)
         val_bpc = losses['val'] * math.log(2)
-        train_bpb = train_bpc  # Same as BPC for character-level models
-        val_bpb = val_bpc      # Same as BPC for character-level models
+        # BPB (Bits Per Byte) = BPC / 8, since 1 byte = 8 bits
+        train_bpb = train_bpc / 8
+        val_bpb = val_bpc / 8
         
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         print(f"           train BPC {train_bpc:.4f}, val BPC {val_bpc:.4f}")

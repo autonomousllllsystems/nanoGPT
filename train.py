@@ -262,18 +262,9 @@ while True:
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
         losses = estimate_loss()
-        
-        # Calculate BPC (Bits Per Character) and BPB (Bits Per Byte)
-        # BPC/BPB = loss * ln(2) where loss is in nats (natural log)
-        train_bpc = losses['train'] * math.log(2)
-        val_bpc = losses['val'] * math.log(2)
-        train_bpb = train_bpc  # Same as BPC for character-level models
-        val_bpb = val_bpc      # Same as BPC for character-level models
-        
-        print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
-        print(f"           train BPC {train_bpc:.4f}, val BPC {val_bpc:.4f}")
-        print(f"           train BPB {train_bpb:.4f}, val BPB {val_bpb:.4f}")
-        
+        train_bpc = losses['train'] / math.log(2)
+        val_bpc = losses['val'] / math.log(2)
+        print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}, train bpc {train_bpc:.4f}, val bpc {val_bpc:.4f}")
         if wandb_log:
             wandb.log({
                 "iter": iter_num,
@@ -281,8 +272,6 @@ while True:
                 "val/loss": losses['val'],
                 "train/bpc": train_bpc,
                 "val/bpc": val_bpc,
-                "train/bpb": train_bpb,
-                "val/bpb": val_bpb,
                 "lr": lr,
                 "mfu": running_mfu*100, # convert to percentage
             })
@@ -336,10 +325,11 @@ while True:
         # get loss as float. note: this is a CPU-GPU sync point
         # scale up to undo the division above, approximating the true total loss (exact would have been a sum)
         lossf = loss.item() * gradient_accumulation_steps
+        bpc = lossf / math.log(2)
         if local_iter_num >= 5: # let the training loop settle a bit
             mfu = raw_model.estimate_mfu(batch_size * gradient_accumulation_steps, dt)
             running_mfu = mfu if running_mfu == -1.0 else 0.9*running_mfu + 0.1*mfu
-        print(f"iter {iter_num}: loss {lossf:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
+        print(f"iter {iter_num}: loss {lossf:.4f}, bpc {bpc:.4f}, time {dt*1000:.2f}ms, mfu {running_mfu*100:.2f}%")
     iter_num += 1
     local_iter_num += 1
 
@@ -349,39 +339,3 @@ while True:
 
 if ddp:
     destroy_process_group()
-
-# Evaluate on test set after training completes
-if master_process:
-    print("\n" + "="*60)
-    print("Training complete! Evaluating on test set...")
-    print("="*60)
-    
-    model.eval()
-    test_losses = torch.zeros(eval_iters)
-    
-    with torch.no_grad():
-        for k in range(eval_iters):
-            X, Y = get_batch('val')  # Use val split if test not available
-            with ctx:
-                logits, loss = model(X, Y)
-            test_losses[k] = loss.item()
-    
-    test_loss = test_losses.mean().item()
-    test_bpc = test_loss * math.log(2)
-    test_bpb = test_bpc
-    
-    print(f"Test loss: {test_loss:.4f}")
-    print(f"Test BPC:  {test_bpc:.4f}")
-    print(f"Test BPB:  {test_bpb:.4f}")
-    print(f"Test perplexity: {math.exp(test_loss):.2f}")
-    print("="*60)
-    
-    if wandb_log:
-        wandb.log({
-            "test/loss": test_loss,
-            "test/bpc": test_bpc,
-            "test/bpb": test_bpb,
-            "test/perplexity": math.exp(test_loss),
-        })
-        print("Test metrics logged to wandb")
-

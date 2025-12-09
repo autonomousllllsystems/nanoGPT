@@ -1,3 +1,8 @@
+out-shakespear-char/
+out-*/
+*.raw
+wandb/
+
 .DS_Store
 .idea
 .ipynb_checkpoints/

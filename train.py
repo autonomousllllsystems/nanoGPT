@@ -118,8 +118,10 @@ def get_batch(split):
     # https://stackoverflow.com/questions/45132940/numpy-memmap-memory-usage-want-to-iterate-once/61472122#61472122
     if split == 'train':
         data = np.memmap(os.path.join(data_dir, 'train.bin'), dtype=np.uint16, mode='r')
-    else:
+    elif split == 'val':
         data = np.memmap(os.path.join(data_dir, 'val.bin'), dtype=np.uint16, mode='r')
+    else:  # test
+        data = np.memmap(os.path.join(data_dir, 'test.bin'), dtype=np.uint16, mode='r')
     ix = torch.randint(len(data) - block_size, (batch_size,))
     x = torch.stack([torch.from_numpy((data[i:i+block_size]).astype(np.int64)) for i in ix])
     y = torch.stack([torch.from_numpy((data[i+1:i+1+block_size]).astype(np.int64)) for i in ix])
@@ -213,10 +215,10 @@ if ddp:
 
 # helps estimate an arbitrarily accurate loss over either split using many batches
 @torch.no_grad()
-def estimate_loss():
+def estimate_loss(splits=['train', 'val']):
     out = {}
     model.eval()
-    for split in ['train', 'val']:
+    for split in splits:
         losses = torch.zeros(eval_iters)
         for k in range(eval_iters):
             X, Y = get_batch(split)
@@ -344,6 +346,38 @@ while True:
     # termination conditions
     if iter_num > max_iters:
         break
+
+# Final test set evaluation
+if master_process:
+    print("\n" + "="*60)
+    print("Final Test Set Evaluation")
+    print("="*60)
+    
+    # Check if test.bin exists
+    test_path = os.path.join(data_dir, 'test.bin')
+    if os.path.exists(test_path):
+        test_losses = estimate_loss(splits=['test'])
+        test_loss = test_losses['test']
+        test_bpc = test_loss / math.log(2)
+        test_bpb = test_bpc / 8
+        
+        print(f"Test loss: {test_loss:.4f}")
+        print(f"Test BPC:  {test_bpc:.4f}")
+        print(f"Test BPB:  {test_bpb:.4f}")
+        print(f"Test perplexity: {math.exp(test_loss):.2f}")
+        print("="*60)
+        
+        if wandb_log:
+            wandb.log({
+                "test/loss": test_loss,
+                "test/bpc": test_bpc,
+                "test/bpb": test_bpb,
+                "test/perplexity": math.exp(test_loss),
+            })
+            print("Test metrics logged to wandb")
+    else:
+        print(f"Test data not found at {test_path}, skipping test evaluation.")
+        print("="*60)
 
 if ddp:
     destroy_process_group()

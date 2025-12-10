@@ -21,7 +21,7 @@ block_size = 256 # context of up to 256 previous characters
 # # GPT 2 model :)
 n_layer = 6
 n_head = 6
-n_embd = 768
+n_embd = 384
 dropout = 0.2
 
 learning_rate = 1e-3 # with baby networks can afford to go a bit higher

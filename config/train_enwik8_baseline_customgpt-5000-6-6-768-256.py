@@ -25,7 +25,7 @@ n_embd = 768
 dropout = 0.2
 
 learning_rate = 1e-3 # with baby networks can afford to go a bit higher
-max_iters = 20000
+max_iters = 5000
 lr_decay_iters = max_iters # make equal to max_iters usually
 min_lr = 1e-4 # 5e-5 # 1e-4 # learning_rate / 10 usually
 beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
@@ -36,7 +36,6 @@ warmup_iters = 100 # not super necessary potentially
 # device = 'cpu'  # run on cpu only
 # compile = False # do not torch compile the model
 # dtype = 'float16' # removes the warning:  [0/0] Not enough SMs to use max_autotune_gemm mode --> nope
-
 
 out_dir =        f'out-enwik8-baseline-customgpt-{max_iters}-{n_layer}-{n_head}-{n_embd}-{block_size}'
 wandb_run_name = f'enwik8-baseline-customgpt-{max_iters}-{n_layer}-{n_head}-{n_embd}-{block_size}'

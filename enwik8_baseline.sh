@@ -7,3 +7,8 @@
 python train.py config/train_enwik8_baseline_customgpt-6-6-768-512.py
 
 # python train.py config/train_enwik8_baseline_customgpt-12-12-768-1024.py
+
+
+python train.py config/train_enwik8_baseline_customgpt-5000-6-6-384-256.py
+python train.py config/train_enwik8_baseline_customgpt-5000-6-6-768-256.py
+

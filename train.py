@@ -262,19 +262,17 @@ while True:
     # evaluate the loss on train/val sets and write checkpoints
     if iter_num % eval_interval == 0 and master_process:
         losses = estimate_loss()
-        
-        # Calculate BPC (Bits Per Character) and BPB (Bits Per Byte)
-        # BPC/BPB = loss * ln(2) where loss is in nats (natural log)
-        train_bpc = losses['train'] * math.log(2)
-        val_bpc = losses['val'] * math.log(2)
-        # BPB (Bits Per Byte) = BPC / 8, since 1 byte = 8 bits
+
+        # Convert nats to bits: bits = nats / ln(2)
+        train_bpc = losses['train'] / math.log(2)
+        val_bpc = losses['val'] / math.log(2)
         train_bpb = train_bpc / 8
         val_bpb = val_bpc / 8
-        
+
         print(f"step {iter_num}: train loss {losses['train']:.4f}, val loss {losses['val']:.4f}")
         print(f"           train BPC {train_bpc:.4f}, val BPC {val_bpc:.4f}")
         print(f"           train BPB {train_bpb:.4f}, val BPB {val_bpb:.4f}")
-        
+
         if wandb_log:
             wandb.log({
                 "iter": iter_num,
@@ -350,39 +348,3 @@ while True:
 
 if ddp:
     destroy_process_group()
-
-# Evaluate on test set after training completes
-if master_process:
-    print("\n" + "="*60)
-    print("Training complete! Evaluating on test set...")
-    print("="*60)
-    
-    model.eval()
-    test_losses = torch.zeros(eval_iters)
-    
-    with torch.no_grad():
-        for k in range(eval_iters):
-            X, Y = get_batch('val')  # Use val split if test not available
-            with ctx:
-                logits, loss = model(X, Y)
-            test_losses[k] = loss.item()
-    
-    test_loss = test_losses.mean().item()
-    test_bpc = test_loss * math.log(2)
-    test_bpb = test_bpc
-    
-    print(f"Test loss: {test_loss:.4f}")
-    print(f"Test BPC:  {test_bpc:.4f}")
-    print(f"Test BPB:  {test_bpb:.4f}")
-    print(f"Test perplexity: {math.exp(test_loss):.2f}")
-    print("="*60)
-    
-    if wandb_log:
-        wandb.log({
-            "test/loss": test_loss,
-            "test/bpc": test_bpc,
-            "test/bpb": test_bpb,
-            "test/perplexity": math.exp(test_loss),
-        })
-        print("Test metrics logged to wandb")
-

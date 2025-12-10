@@ -22,7 +22,7 @@ dtype = 'bfloat16' if torch.cuda.is_available() and torch.cuda.is_bf16_supported
 ptdtype = {'float32': torch.float32, 'bfloat16': torch.bfloat16, 'float16': torch.float16}[dtype]
 ctx = nullcontext() if device == 'cpu' else torch.amp.autocast(device_type='cuda', dtype=ptdtype)
 
-def test(checkpoint_path, dataset, eval_iters=200, batch_size=32, block_size=None):
+def test(checkpoint_path, dataset, split='test', eval_iters=200, batch_size=32, block_size=None):
     """
     Load a checkpoint and evaluate on test/validation set.
     
@@ -111,12 +111,13 @@ def test(checkpoint_path, dataset, eval_iters=200, batch_size=32, block_size=Non
         return x, y
     
     # Evaluation loop
-    print(f"\nEvaluating on validation set ({eval_iters} batches)...")
+    split_name = split
+    print(f"\nEvaluating on {split_name} set ({eval_iters} batches)...")
     losses = torch.zeros(eval_iters)
     
     with torch.no_grad():
         for k in range(eval_iters):
-            X, Y = get_batch('val')
+            X, Y = get_batch(split_name)
             if X is None:
                 break
             
@@ -128,20 +129,21 @@ def test(checkpoint_path, dataset, eval_iters=200, batch_size=32, block_size=Non
                 print(f"  Batch {k+1}/{eval_iters}: loss = {loss.item():.4f}")
     
     val_loss = losses.mean().item()
-    
-    # Calculate BPC (Bits Per Character)
-    # BPC = loss * ln(2) where loss is in nats (natural log)
-    bpc = val_loss * math.log(2)
+
+    # Convert nats to bits: bits = nats / ln(2)
+    bpc = val_loss / math.log(2)
+    bpb = bpc / 8
     
     print(f"\n{'='*50}")
-    print(f"Results:")
+    print(f"Results ({split_name} split):")
     print(f"{'='*50}")
     print(f"Validation Loss (nats): {val_loss:.4f}")
     print(f"Bits Per Character (BPC): {bpc:.4f}")
+    print(f"Bits Per Byte (BPB):     {bpb:.4f}")
     print(f"Perplexity: {math.exp(val_loss):.2f}")
     print(f"{'='*50}")
-    
-    return val_loss, bpc
+
+    return val_loss, bpc, bpb
 
 
 if __name__ == "__main__":
@@ -179,6 +181,7 @@ if __name__ == "__main__":
     test(
         checkpoint_path=args.checkpoint,
         dataset=args.dataset,
+        split=args.split,
         eval_iters=args.eval_iters,
         batch_size=args.batch_size,
         block_size=args.block_size

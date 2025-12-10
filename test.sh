@@ -1,0 +1,1 @@
+python test.py --checkpoint out-enwik8-baseline-customgpt-50000-6-6-768-256/ckpt.pt

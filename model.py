@@ -26,7 +26,8 @@ class LayerNorm(nn.Module):
     def forward(self, input):
         return F.layer_norm(input, self.weight.shape, self.weight, self.bias, 1e-5)
 
-class CausalSelfAttention(nn.Module):
+class BaseAttention(nn.Module):
+    """Base class for attention mechanisms. Subclasses should implement forward()."""
 
     def __init__(self, config):
         super().__init__()
@@ -41,6 +42,15 @@ class CausalSelfAttention(nn.Module):
         self.n_head = config.n_head
         self.n_embd = config.n_embd
         self.dropout = config.dropout
+
+    def forward(self, x):
+        raise NotImplementedError("Subclasses must implement forward()")
+
+
+class CausalSelfAttention(BaseAttention):
+
+    def __init__(self, config):
+        super().__init__(config)
         # flash attention make GPU go brrrrr but support is only in PyTorch >= 2.0
         self.flash = hasattr(torch.nn.functional, 'scaled_dot_product_attention')
         if not self.flash:

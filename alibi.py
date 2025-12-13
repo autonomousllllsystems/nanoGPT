@@ -186,3 +186,4 @@ class AlibiGPT(GPT):
         for block in self.transformer.h:
             if hasattr(block.attn, "bias"):
                 block.attn.bias = block.attn.bias[:, :, :block_size, :block_size]
+

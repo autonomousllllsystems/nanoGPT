@@ -29,6 +29,8 @@ from torch.distributed import init_process_group, destroy_process_group
 
 from model import GPTConfig, GPT
 from alibi import AlibiGPT, AlibiGPTConfig
+from rope import RoPEGPT, RoPEGPTConfig
+from relational import RelGPT, RelGPTConfig
 
 # -----------------------------------------------------------------------------
 # default config values designed to train a gpt2 (124M) on OpenWebText
@@ -50,7 +52,7 @@ gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 12 # if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 1024
 # model
-model_type = 'standard'  # 'standard' or 'alibi'
+model_type = 'standard'  # 'standard', 'alibi', 'rope', or 'rel'
 n_layer = 12
 n_head = 12
 n_embd = 768
@@ -161,6 +163,12 @@ if init_from == 'scratch':
     if model_type == 'alibi':
         gptconf = AlibiGPTConfig(**model_args)
         model = AlibiGPT(gptconf)
+    elif model_type == 'rope':
+        gptconf = RoPEGPTConfig(**model_args)
+        model = RoPEGPT(gptconf)
+    elif model_type == 'rel':
+        gptconf = RelGPTConfig(**model_args)
+        model = RelGPT(gptconf)
     else:
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
@@ -178,6 +186,12 @@ elif init_from == 'resume':
     if model_type == 'alibi':
         gptconf = AlibiGPTConfig(**model_args)
         model = AlibiGPT(gptconf)
+    elif model_type == 'rope':
+        gptconf = RoPEGPTConfig(**model_args)
+        model = RoPEGPT(gptconf)
+    elif model_type == 'rel':
+        gptconf = RelGPTConfig(**model_args)
+        model = RelGPT(gptconf)
     else:
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)

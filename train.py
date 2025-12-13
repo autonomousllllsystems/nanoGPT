@@ -31,6 +31,7 @@ from model import GPTConfig, GPT
 from alibi import AlibiGPT, AlibiGPTConfig
 from rope import RoPEGPT, RoPEGPTConfig
 from relational import RelGPT, RelGPTConfig
+from titan import TitanGPT, TitanGPTConfig
 
 # -----------------------------------------------------------------------------
 # default config values designed to train a gpt2 (124M) on OpenWebText
@@ -52,7 +53,7 @@ gradient_accumulation_steps = 5 * 8 # used to simulate larger batch sizes
 batch_size = 12 # if gradient_accumulation_steps > 1, this is the micro-batch size
 block_size = 1024
 # model
-model_type = 'standard'  # 'standard', 'alibi', 'rope', or 'rel'
+model_type = 'standard'  # 'standard', 'alibi', 'rope', 'rel', or 'titan'
 n_layer = 12
 n_head = 12
 n_embd = 768
@@ -169,6 +170,9 @@ if init_from == 'scratch':
     elif model_type == 'rel':
         gptconf = RelGPTConfig(**model_args)
         model = RelGPT(gptconf)
+    elif model_type == 'titan':
+        gptconf = TitanGPTConfig(**model_args)
+        model = TitanGPT(gptconf)
     else:
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)
@@ -192,6 +196,9 @@ elif init_from == 'resume':
     elif model_type == 'rel':
         gptconf = RelGPTConfig(**model_args)
         model = RelGPT(gptconf)
+    elif model_type == 'titan':
+        gptconf = TitanGPTConfig(**model_args)
+        model = TitanGPT(gptconf)
     else:
         gptconf = GPTConfig(**model_args)
         model = GPT(gptconf)

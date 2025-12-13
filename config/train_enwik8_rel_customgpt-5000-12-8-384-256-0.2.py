@@ -1,0 +1,54 @@
+# train a miniature character-level shakespeare model with ALiBi attention
+# good for debugging and playing on macbooks and such
+
+eval_interval = 500 # keep frequent because we'll overfit
+eval_iters = 200
+log_interval = 50 # don't print too too often
+
+# we expect to overfit on this small dataset, so only save when val improves
+always_save_checkpoint = True
+init_from = 'scratch' # 'scratch' or 'resume' or 'gpt2*'
+
+wandb_log = True # override via command line if you like
+wandb_project = 'enwik8-baseline'
+
+dataset = 'enwik8'
+gradient_accumulation_steps = 1
+batch_size = 32
+block_size = 256 # context of up to 256 previous characters
+
+# ALiBi GPT model - uses Attention with Linear Biases instead of positional embeddings
+model_type = 'rel'  # 'standard' or 'alibi'
+n_layer = 12
+n_head = 8
+n_embd = 384
+dropout = 0.2
+
+learning_rate = 1e-3 # with baby networks can afford to go a bit higher
+max_iters = 5000
+lr_decay_iters = max_iters # make equal to max_iters usually
+min_lr = 1e-4 # learning_rate / 10 usually
+beta2 = 0.99 # make a bit bigger because number of tokens per iter is small
+
+warmup_iters = 100 # not super necessary potentially
+
+# on macbook also add
+# device = 'cpu'  # run on cpu only
+# compile = False # do not torch compile the model
+# dtype = 'float16' # removes the warning:  [0/0] Not enough SMs to use max_autotune_gemm mode --> nope
+
+out_dir =        f'out-enwik8-baseline-customgpt-{model_type}-{max_iters}-{n_layer}-{n_head}-{n_embd}-{block_size}-{dropout}'
+wandb_run_name = f'enwik8-baseline-customgpt-{model_type}-{max_iters}-{n_layer}-{n_head}-{n_embd}-{block_size}-{dropout}'
+
+
+
+# saving checkpoint to out-enwik8-baseline-customgpt-rel-5000-12-8-384-256-0.2
+# iter 5000: loss 1.2929, bpc 1.8652, time 30355.80ms, mfu 2.03%
+
+# ============================================================
+# Final Test Set Evaluation                                                                         3-Dec-25
+# ============================================================
+# Test loss: 1.1188
+# Test BPC:  1.6141
+# Test BPB:  0.2018
+# Test perplexity: 3.06

@@ -9,15 +9,22 @@ from torch.nn import functional as F
 from model import BaseAttention, LayerNorm, MLP, GPTConfig, GPT
 
 
-def _rotate_half(x: torch.Tensor) -> torch.Tensor:
+def _rotate_even_odd(x: torch.Tensor) -> torch.Tensor:
     x1 = x[..., ::2]
     x2 = x[..., 1::2]
     return torch.stack((-x2, x1), dim=-1).reshape_as(x)
 
+def _rotate_half_split(x: torch.Tensor) -> torch.Tensor:
+    d = x.shape[-1]
+    x1 = x[..., : d // 2]
+    x2 = x[..., d // 2 :]
+    return torch.cat((-x2, x1), dim=-1)
 
-def _apply_rotary(q, k, cos, sin):
-    q = (q * cos) + (_rotate_half(q) * sin)
-    k = (k * cos) + (_rotate_half(k) * sin)
+
+def _apply_rotary(q, k, cos, sin, split_mode: str):
+    rot = _rotate_even_odd if split_mode == 'even-odd' else _rotate_half_split
+    q = (q * cos) + (rot(q) * sin)
+    k = (k * cos) + (rot(k) * sin)
     return q, k
 
 
@@ -40,7 +47,8 @@ class RoPEAttention(BaseAttention):
     def __init__(self, config):
         super().__init__(config)
         self.rotary = RotaryEmbedding(config.n_embd // config.n_head)
-        self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention")
+        self.split_mode = getattr(config, 'rope_split', 'even-odd')
+        self.flash = hasattr(torch.nn.functional, "scaled_dot_product_attention") and not getattr(config, 'disable_flash', False)
         if not self.flash:
             self.register_buffer(
                 "bias",
@@ -57,7 +65,7 @@ class RoPEAttention(BaseAttention):
         freqs = self.rotary(T, x.device, q.dtype)
         cos = freqs.cos()[None, None, :, :]
         sin = freqs.sin()[None, None, :, :]
-        q, k = _apply_rotary(q, k, cos, sin)
+        q, k = _apply_rotary(q, k, cos, sin, self.split_mode)
 
         if self.flash:
             y = torch.nn.functional.scaled_dot_product_attention(
@@ -91,7 +99,9 @@ class RoPEBlock(nn.Module):
 
 @dataclass
 class RoPEGPTConfig(GPTConfig):
-    pass
+    rope_split: str = 'even-odd'  # 'even-odd' or 'half'
+    disable_flash: bool = False
+    tie_weights: bool = True
 
 
 class RoPEGPT(GPT):
@@ -112,7 +122,8 @@ class RoPEGPT(GPT):
             )
         )
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias=False)
-        self.transformer.wte.weight = self.lm_head.weight
+        if config.tie_weights:
+            self.transformer.wte.weight = self.lm_head.weight
 
         self.apply(self._init_weights)
         for pn, p in self.named_parameters():
@@ -158,3 +169,19 @@ class RoPEGPT(GPT):
             for block in self.transformer.h:
                 if hasattr(block.attn, "bias"):
                     block.attn.bias = block.attn.bias[:, :, :block_size, :block_size]
+
+    # Optional: enable fused AdamW similar to model_rope.py
+    def configure_optimizers(self, weight_decay, learning_rate, betas, device_type):
+        import inspect
+        param_dict = {pn: p for pn, p in self.named_parameters() if p.requires_grad}
+        decay_params = [p for _, p in param_dict.items() if p.dim() >= 2]
+        nodecay_params = [p for _, p in param_dict.items() if p.dim() < 2]
+        optim_groups = [
+            {'params': decay_params, 'weight_decay': weight_decay},
+            {'params': nodecay_params, 'weight_decay': 0.0},
+        ]
+        fused_available = 'fused' in inspect.signature(torch.optim.AdamW).parameters
+        use_fused = fused_available and device_type == 'cuda'
+        extra_args = dict(fused=True) if use_fused else dict()
+        optimizer = torch.optim.AdamW(optim_groups, lr=learning_rate, betas=betas, **extra_args)
+        return optimizer
